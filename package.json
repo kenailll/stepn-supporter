@@ -1,0 +1,21 @@
+{
+  "name": "msniff",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.27.2",
+    "bull": "^4.8.3",
+    "chain-proxy": "0.0.3",
+    "http-mitm-proxy": "^0.9.0",
+    "https-proxy-agent": "^5.0.1",
+    "node-telegram-bot-api": "^0.57.0",
+    "totp-generator": "^0.0.13",
+    "urldecode": "^1.0.1"
+  }
+}
