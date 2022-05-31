@@ -7,37 +7,48 @@ async function login(url, private, headers, callback=null){
 	let pattern = /&account=(.+)&password/;
 	let account = url.match(pattern)[1].toString().replace('%40', '@');
 	var login = await axios.get(url, headers);
-	
+	console.log('login data', login.data)
+
 	var account_data = {}
 	try {
-		account_data = fs.readFileSync(`./accounts/${account}.json`);
+		account_data = JSON.parse(fs.readFileSync(`./accounts/${account}.json`, 'utf-8'));
 	} catch (error) {
+	}
+
+	if(login.data.code != 0){
+		console.log('Login error', login.data.msg);
+		return login
 	}
 
 	account_data.cookie = login.headers['set-cookie'][0];
 	headers.cookie = login.headers['set-cookie'][0];
+	login.data.cookie = login.headers['set-cookie'][0];
 
 	try {
-		console.log('login data', login.data)
-		if(login.data.code == 0){
-			await doCodeCheck(private, headers)
-		}
-		fs.writeFileSync(`./accounts/${account}.json`, JSON.stringify(account_data, '', 4));
+		await doCodeCheck(private, headers)
+
+		let user_info = await userbasic(headers);
+		if(user_info.code == 0){
+			account_data.userbasic = user_info.data;
+		}		
 	} catch (error) {
-		console.log(error)
+		console.log('Login error', error)
+		return login
 	}
 
 	if(callback){
 		callback(account, private, headers)
 	}
-	return headers.cookie
+
+	fs.writeFileSync(`./accounts/${account}.json`, JSON.stringify(account_data, '', 4));
+	return login
 }
 
 async function logout(headers){
 	let url = `https://apilb.stepn.com/run/loginOut`;
 
 	let result = await axios.get(url, headers);
-	console.log("2fa_data:", result.data)
+	console.log("logout:", result.data)
 	return result
 }
 
@@ -56,20 +67,22 @@ async function userbasic(headers){
 	headers["user-agent"] = "Dart/2.16 (dart:io)"
     let url = `https://apilb.stepn.com/run/userbasic`;
 	var result = await axios.get(url, {headers: headers});
-	return result
+	return result.data
 }
 
 function saveUserbasic(account, data){
-	var account_data = {}
+	if(data.code == 0){
+		var account_data = {}
 	
-	try {
-		account_data = JSON.parse(fs.readFileSync(`./accounts/${account}.json`, 'utf-8'));
-	} catch (error) {
-		console.log(error)
-	}
+		try {
+			account_data = JSON.parse(fs.readFileSync(`./accounts/${account}.json`, 'utf-8'));
+		} catch (error) {
+			console.log(error)
+		}
 
-	account_data.userbasic = data.data;
-	fs.writeFileSync(`./accounts/${account}.json`, JSON.stringify(account_data, '', 4));
+		account_data.userbasic = data.data;
+		fs.writeFileSync(`./accounts/${account}.json`, JSON.stringify(account_data, '', 4));
+	}
 }
 
 async function withdraw(private, headers){
@@ -87,10 +100,10 @@ async function withdraw(private, headers){
 	return result
 }
 
-async function withdrawNFT(private, dataID, propID, headers){
+async function withdrawNFT(private, dataID, propID, chainID, headers){
 	headers["user-agent"] = "Dart/2.16 (dart:io)"
 	let gg_2fa = totp(private);
-	let url = `https://apilb.stepn.com/run/withdrawtoken?dataID=${dataID}&propID=${propID}&chainID=104&num=1&googleCode=${gg_2fa}`;
+	let url = `https://apilb.stepn.com/run/withdrawtoken?dataID=${dataID}&propID=${propID}&chainID=${chainID}&num=1&googleCode=${gg_2fa}`;
 	let result = await axios.get(url, {headers: headers});
 	console.log("withdraw", result.data)
 	return result
@@ -100,24 +113,26 @@ async function shoesList(headers){
 	headers["user-agent"] = "Dart/2.16 (dart:io)"
 	let url = `https://apilb.stepn.com/run/shoelist`;
 	let result = await axios.get(url, {headers: headers});
-	return result
+	return result.data
 }
 
 function saveShoes(account, data){
-	var account_data = {}
+	if(data.code == 0){
+		var account_data = {}
 
-	try {
-		account_data = JSON.parse(fs.readFileSync(`./accounts/${account}.json`, 'utf-8'));
-	} catch (error) {
-		console.log(error)
+		try {
+			account_data = JSON.parse(fs.readFileSync(`./accounts/${account}.json`, 'utf-8'));
+		} catch (error) {
+			console.log(error)
+		}
+
+		let chain_103 = data.data.filter(shoe => shoe.chain == 103);
+		let chain_104 = data.data.filter(shoe => shoe.chain == 104);
+
+		account_data["103"] = chain_103
+		account_data["104"] = chain_104
+		fs.writeFileSync(`./accounts/${account}.json`, JSON.stringify(account_data, '', 4));
 	}
-
-	let chain_103 = data.data.filter(shoe => shoe.chain == 103);
-	let chain_104 = data.data.filter(shoe => shoe.chain == 104);
-
-	account_data["103"] = chain_103
-	account_data["104"] = chain_104
-	fs.writeFileSync(`./accounts/${account}.json`, JSON.stringify(account_data, '', 4));
 }
 
 async function withdrawNFTs(account, private, headers){
@@ -132,13 +147,14 @@ async function withdrawNFTs(account, private, headers){
 
 	for(let chainId of Object.keys(shoes)){
 		for(let shoe of shoes[chainId]){
-			await withdrawNFT(private, shoe.dataID, shoe.id, headers);
+			await withdrawNFT(private, shoe.dataID, shoe.id, chainId, headers);
 		}
 	}
 
 	//update shoelist in cache
 	let new_shoesList = await shoesList(headers);
-	saveShoes(account, new_shoesList.data);
+	console.log("new_shoesList", new_shoesList)
+	saveShoes(account, new_shoesList);
 }
 
 module.exports = { login, logout, doCodeCheck, withdraw, userbasic, saveUserbasic, shoesList, saveShoes, withdrawNFTs}

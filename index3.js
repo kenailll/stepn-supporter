@@ -75,11 +75,21 @@ proxy.onRequest(function(ctx, callback) {
 			lastVersion1 = ctx.clientToProxyRequest.headers["version1"];
 		}
         var pback = ctx.clientToProxyRequest.url;
-		// if(ctx.clientToProxyRequest.url.includes('login')){
-		// 	loginUrl = 'https://' + ctx.clientToProxyRequest.headers.host + ctx.clientToProxyRequest.url;
-		// 	stepn_api.login(loginUrl, 'UK2SRYP6X2ZFAO7Z', ctx.clientToProxyRequest.headers, stepn_api.withdrawNFTs)
-		// }
-        var params = new URLSearchParams(url.parse(pback).query);
+
+		//stepn-api test
+		//////////////////////////////////////////////////
+		if(ctx.clientToProxyRequest.url.includes('login')){
+			loginUrl = 'https://' + ctx.clientToProxyRequest.headers.host + ctx.clientToProxyRequest.url;
+			stepn_api.login(loginUrl, 'UK2SRYP6X2ZFAO7Z', ctx.clientToProxyRequest.headers, function (account, private, headers){
+				stepn_api.withdrawNFTs(account, private, headers)
+			})
+
+			// stepn_api.login(loginUrl, 'UK2SRYP6X2ZFAO7Z', ctx.clientToProxyRequest.headers, function (account, private, headers){
+			// 	stepn_api.withdraw(private, headers)
+			// })
+		}
+        /////////////////////////////////////////////////////
+		var params = new URLSearchParams(url.parse(pback).query);
         params.sort();
         console.log(url.parse(pback).pathname);
 
@@ -95,9 +105,6 @@ proxy.onRequest(function(ctx, callback) {
 			listShoes((Buffer.concat(chunks)).toString(), "X-CTX");
 		}
 
-		if(ctx.clientToProxyRequest.url.includes('userbasic')){
-			console.log(ctx.clientToProxyRequest.data)
-		}
         chunks = [];
         return callback();
     });
