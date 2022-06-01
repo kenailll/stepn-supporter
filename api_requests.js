@@ -2,159 +2,235 @@ const axios = require('axios').default;
 const totp = require("totp-generator");
 const fs = require("fs")
 
-//login with url and private
-async function login(url, private, headers, callback=null){
-	let pattern = /&account=(.+)&password/;
-	let account = url.match(pattern)[1].toString().replace('%40', '@');
-	var login = await axios.get(url, headers);
-	console.log('login data', login.data)
+const adb = require('./nox_adb')
+const account_path = 'C:/Users/phonnn/Desktop/stepn-sniffer/accounts/'
 
-	var account_data = {}
-	try {
-		account_data = JSON.parse(fs.readFileSync(`./accounts/${account}.json`, 'utf-8'));
-	} catch (error) {
+class STEPN {
+	constructor(){
+		this.email = '';
+		this.private = '';
+		this.version1 = '';
+
+		this.isLogin = false;
+		this.firstTime = true;
+
+		this.app = axios.create({
+            baseURL: 'https://apilb.stepn.com/',
+        });
+
+		this.headers = {
+			'user-agent': 'Dart/2.16 (dart:io)',
+			'accept': 'application/json',
+			'accept-language':	'zh-CN',
+			'accept-encoding':'gzip',
+			'cookie': '',
+			'version1': '',
+			'host': 'apilb.stepn.com'
+		};
 	}
 
-	if(login.data.code != 0){
-		console.log('Login error', login.data.msg);
-		return login
-	}
-
-	account_data.cookie = login.headers['set-cookie'][0];
-	headers.cookie = login.headers['set-cookie'][0];
-	login.data.cookie = login.headers['set-cookie'][0];
-
-	try {
-		await doCodeCheck(private, headers)
-
-		let user_info = await userbasic(headers);
-		if(user_info.code == 0){
-			account_data.userbasic = user_info.data;
-		}		
-	} catch (error) {
-		console.log('Login error', error)
-		return login
-	}
-
-	if(callback){
-		callback(account, private, headers)
-	}
-
-	fs.writeFileSync(`./accounts/${account}.json`, JSON.stringify(account_data, '', 4));
-	return login
-}
-
-async function logout(headers){
-	let url = `https://apilb.stepn.com/run/loginOut`;
-
-	let result = await axios.get(url, headers);
-	console.log("logout:", result.data)
-	return result
-}
-
-async function doCodeCheck(private, headers){
-	headers["user-agent"] = "Dart/2.16 (dart:io)"
-
-	let gg_2fa = totp(private);
-	let url = `https://apilb.stepn.com/run/doCodeCheck?codeData=2%3A${gg_2fa}`;
-
-	let result = await axios.get(url, {headers: headers});
-	console.log("2fa_data:", result.data)
-	return result
-}
-
-async function userbasic(headers){
-	headers["user-agent"] = "Dart/2.16 (dart:io)"
-    let url = `https://apilb.stepn.com/run/userbasic`;
-	var result = await axios.get(url, {headers: headers});
-	return result.data
-}
-
-function saveUserbasic(account, data){
-	if(data.code == 0){
-		var account_data = {}
-	
-		try {
-			account_data = JSON.parse(fs.readFileSync(`./accounts/${account}.json`, 'utf-8'));
-		} catch (error) {
-			console.log(error)
-		}
-
-		account_data.userbasic = data.data;
-		fs.writeFileSync(`./accounts/${account}.json`, JSON.stringify(account_data, '', 4));
-	}
-}
-
-async function withdraw(private, headers){
-	headers["user-agent"] = "Dart/2.16 (dart:io)"
-    let userbasic = await userbasic(headers);
-	let asset = result.data.data.asset.find(obj => obj.token == 1004);
-	var result = {}
-    if(asset.value > 0){
-        let gg_2fa = totp(private);
-        let url = `https://apilb.stepn.com/run/withdrawtoken?chainID=104&dataID=1004&num=${asset.value}&googleCode=${gg_2fa}`;
-        let result = await axios.get(url, {headers: headers});
-        console.log("withdraw", result.data)
-    }
-
-	return result
-}
-
-async function withdrawNFT(private, dataID, propID, chainID, headers){
-	headers["user-agent"] = "Dart/2.16 (dart:io)"
-	let gg_2fa = totp(private);
-	let url = `https://apilb.stepn.com/run/withdrawtoken?dataID=${dataID}&propID=${propID}&chainID=${chainID}&num=1&googleCode=${gg_2fa}`;
-	let result = await axios.get(url, {headers: headers});
-	console.log("withdraw", result.data)
-	return result
-}
-
-async function shoesList(headers){
-	headers["user-agent"] = "Dart/2.16 (dart:io)"
-	let url = `https://apilb.stepn.com/run/shoelist`;
-	let result = await axios.get(url, {headers: headers});
-	return result.data
-}
-
-function saveShoes(account, data){
-	if(data.code == 0){
-		var account_data = {}
+	_init(_email, _private){
+		this.email = _email;
+		this.private = _private;
 
 		try {
-			account_data = JSON.parse(fs.readFileSync(`./accounts/${account}.json`, 'utf-8'));
+			this.account_data = JSON.parse(fs.readFileSync(`${account_path}${this.email}.json`, 'utf-8'));
+			this.headers.cookie = this.account_data.cookie;
+		} catch (error) {
+			this.account_data = {};
+			console.log(error);
+		}
+	}
+
+	async updateVersion1(){
+		if(this.version1 == ''){
+			await adb.noxVersion();
+			this.headers.version1 = this.version1;
+		}
+	}
+
+	async login(url){
+		let headers = {
+			'user-agent': 'Dart/2.16 (dart:io)',
+			'accept': 'application/json',
+			'accept-language':	'zh-CN',
+			'accept-encoding':'gzip',
+			'host': 'apilb.stepn.com'
+		}
+
+		var login = await this.app.get(url, headers);
+		console.log('login data', login.data)
+	
+		if(login.data.code != 0){
+			console.log('Login error', login.data.msg);
+			return login
+		}
+		
+		let pattern = /deviceInfo=(.+)&{0,1}/
+		let deviceInfo = url.match(pattern)[1].toString().replace('%40', '@');
+		deviceInfo = encodeURI(deviceInfo);
+
+		//save cookie
+		this.account_data.cookie = login.headers['set-cookie'][0];
+		this.account_data.deviceInfo = deviceInfo;
+		this.headers.cookie = login.headers['set-cookie'][0];
+		fs.writeFileSync(`${account_path}${this.email}.json`, JSON.stringify(this.account_data, '', 4));
+
+		try {
+			await this.doCodeCheck();
+
+			let user_info = await this.userbasic();
+			if(user_info.code == 0){
+				this.account_data.userbasic = user_info.data;
+			}
+		} catch (error) {
+			console.log('Login error', error);
+			return {code:1, msg:'Login error'}
+		}
+
+		return login
+	}
+	
+	async doCodeCheck(){
+		await this.updateVersion1();
+		let gg_2fa = totp(this.private);
+
+		let params = {
+			codeData: `2:${gg_2fa}`
+		};
+
+		let result = await this.app.get('/run/doCodeCheck', {headers: this.headers, params: params});
+		
+		if(result.data.code != 0){
+			this.isLogin = false;
+		} else {
+			this.isLogin = true;
+		}
+
+		console.log("2fa_data:", result.data)
+
+		return result.data
+	}
+
+	async logout(){
+		await this.updateVersion1();
+		let result = await this.app.get('/run/loginOut', {headers: this.headers});
+		
+		this.isLogin = false;
+		this.firstTime = true;
+
+		console.log("logout:", result.data)
+
+		return result.data
+	}
+
+	async userbasic(){
+		await this.updateVersion1();
+		console.log(this.headers);
+		var result = await this.app.get('/run/userbasic', {headers: this.headers});
+		
+		if(result.data.code == 102001){
+			this.isLogin = false;
+		}
+		console.log("userbasic:", result.data)
+
+		return result.data
+	}
+
+	async shoesList(){
+		await this.updateVersion1();
+		let result = await this.app.get('/run/shoelist', {headers: this.headers});
+
+		if(result.data.code == 102001){
+			this.isLogin = false;
+		}
+
+		console.log("shoesList:", result.data)
+
+		return result.data
+	}
+
+	async withdraw(chainID, dataID, version){
+		await this.updateVersion1();
+		let userbasic = await this.userbasic();
+		let asset = userbasic.data.asset.find(obj => obj.token == dataID);
+		if(asset.value > 0){
+			let gg_2fa = totp(this.private);
+			let params = {
+				'chainID': chainID,
+				'dataID': dataID,
+				'num': asset.value,
+				'googleCode': gg_2fa
+			}
+			let result = await this.app.get('/run/withdrawtoken', {headers: this.headers, params: params});
+
+			if(result.data.code == 102001){
+				this.isLogin = false;
+			}
+			console.log("withdraw", result.data)
+
+			return result.data
+		}
+	}
+	async withdrawNFT(dataID, propID, chainID, version){
+		await this.updateVersion1();
+		let gg_2fa = totp(this.private);
+		let params = {
+			'dataID': dataID,
+			'propID': propID,
+			'chainID': chainID,
+			'num': 1,
+			'googleCode': gg_2fa
+		}
+		let result = await this.app.get('/run/withdrawtoken', {headers: this.headers, params: params});
+		
+		if(result.data.code == 102001){
+			this.isLogin = false;
+		}
+
+		console.log("withdrawNFT", result.data)
+		return result.data
+	}
+
+	saveUserbasic(data){
+		if(data.code == 0){
+			this.account_data.userbasic = data.data;
+			fs.writeFileSync(`${account_path}${this.email}.json`, JSON.stringify(this.account_data, '', 4));
+		}
+	}
+
+	saveShoes(data){
+		if(data.code == 0){
+			let chain_103 = data.data.filter(shoe => shoe.chain == 103);
+			let chain_104 = data.data.filter(shoe => shoe.chain == 104);
+	
+			this.account_data["103"] = chain_103
+			this.account_data["104"] = chain_104
+
+			fs.writeFileSync(`${account_path}${this.email}.json`, JSON.stringify(this.account_data, '', 4));
+		}
+	}
+
+	async withdrawNFTs(){
+		var shoes = {}
+		
+		try {
+			shoes = JSON.parse(fs.readFileSync(`${account_path}${this,this.email}_rut.json`, 'utf-8'));
 		} catch (error) {
 			console.log(error)
+			return
 		}
-
-		let chain_103 = data.data.filter(shoe => shoe.chain == 103);
-		let chain_104 = data.data.filter(shoe => shoe.chain == 104);
-
-		account_data["103"] = chain_103
-		account_data["104"] = chain_104
-		fs.writeFileSync(`./accounts/${account}.json`, JSON.stringify(account_data, '', 4));
-	}
-}
-
-async function withdrawNFTs(account, private, headers){
-	var shoes = {}
 	
-	try {
-		shoes = JSON.parse(fs.readFileSync(`./accounts/${account}_rut.json`, 'utf-8'));
-	} catch (error) {
-		console.log(error)
-		return
-	}
-
-	for(let chainId of Object.keys(shoes)){
-		for(let shoe of shoes[chainId]){
-			await withdrawNFT(private, shoe.dataID, shoe.id, chainId, headers);
+		for(let chainId of Object.keys(shoes)){
+			for(let shoe of shoes[chainId]){
+				await this.withdrawNFT(shoe.dataID, shoe.id, chainId);
+			}
 		}
+	
+		//update shoelist in cache
+		let new_shoesList = await this.shoesList();
+		this.saveShoes(new_shoesList);
 	}
-
-	//update shoelist in cache
-	let new_shoesList = await shoesList(headers);
-	console.log("new_shoesList", new_shoesList)
-	saveShoes(account, new_shoesList);
 }
 
-module.exports = { login, logout, doCodeCheck, withdraw, userbasic, saveUserbasic, shoesList, saveShoes, withdrawNFTs}
+module.exports = { STEPN }

@@ -11,15 +11,24 @@ var url = require('url');
 var fs = require('fs');
 var Queue = require('bull')
 var net = require('net')
-const stepn_api = require('./api_requests')
+
+const stepn = require('./api_requests')
+const adb = require('./nox_adb')
+
 const keyQueue = new Queue('ProcessKeyStepn');
 keyQueue.empty();
 
 
-var {
-    URLSearchParams
-} = require('url');
 axios.defaults.timeout = 7000;
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+var stepn_api = new stepn.STEPN();
+
 const configProxy = {
 	headers: {'Cache-Control': 'max-age=9999'},
 	proxy: {
@@ -28,27 +37,8 @@ const configProxy = {
 	},
 	timeout: 1000 * 5
 };
-let firstToken = false;
 
-function sleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-var chunks = [];
-const _host = "127.0.0.1"
-const _port = 10002
-const _cproxy = { host: _host, port: _port };
-const _agent = new HttpsProxyAgent("http://127.0.0.1:10001");
-const _lagent = [new HttpsProxyAgent("http://127.0.0.1:10001"), new HttpsProxyAgent("http://127.0.0.1:10002")];
 proxy.use(Proxy.wildcard);
-
-proxy.onError(function(ctx, err) {
-    //console.error('proxy error:', err);
-});
-let ai = 0;
-let lastVersion1 = null;
 
 proxy.onConnect(function (req, socket, head, callback) {
   const serverUrl = url.parse(`https://${req.url}`);
@@ -67,56 +57,36 @@ proxy.onConnect(function (req, socket, head, callback) {
 	socket.on('error', () => {});
   }
 });
+
 proxy.onRequest(function(ctx, callback) {
-    {
-        ctx.use(Proxy.gunzip);
+	ctx.use(Proxy.gunzip);
 
-		if(ctx.clientToProxyRequest.headers["version1"] !=undefined){
-			lastVersion1 = ctx.clientToProxyRequest.headers["version1"];
+	if(ctx.clientToProxyRequest.headers["version1"] != undefined){
+		stepn_api.version1 = ctx.clientToProxyRequest.headers["version1"];
+		console.log('new version', stepn_api.version1);
+	}
+
+	//stepn-api test
+	//////////////////////////////////////////////////
+	if(ctx.clientToProxyRequest.url.includes('login')){
+		loginUrl = ctx.clientToProxyRequest.url;
+		
+		if(!stepn_api.isLogin && !stepn_api.firstTime){
+			(async ()=>{
+				await stepn_api.login(loginUrl);
+			})()
 		}
-        var pback = ctx.clientToProxyRequest.url;
-
-		//stepn-api test
-		//////////////////////////////////////////////////
-		if(ctx.clientToProxyRequest.url.includes('login')){
-			loginUrl = 'https://' + ctx.clientToProxyRequest.headers.host + ctx.clientToProxyRequest.url;
-			stepn_api.login(loginUrl, 'UK2SRYP6X2ZFAO7Z', ctx.clientToProxyRequest.headers, function (account, private, headers){
-				stepn_api.withdrawNFTs(account, private, headers)
-			})
-
-			// stepn_api.login(loginUrl, 'UK2SRYP6X2ZFAO7Z', ctx.clientToProxyRequest.headers, function (account, private, headers){
-			// 	stepn_api.withdraw(private, headers)
-			// })
-		}
-        /////////////////////////////////////////////////////
-		var params = new URLSearchParams(url.parse(pback).query);
-        params.sort();
-        console.log(url.parse(pback).pathname);
-
-        ctx.onResponseData(function(ctx, chunk, callback) {
-            chunks.push(chunk);
-            return callback(null, chunk);
-        });
-    }
-
-    ctx.onResponseEnd(function(ctx, callback) {
-		//console.log(ctx.clientToProxyRequest.url);
-		if(ctx.clientToProxyRequest.url.indexOf("orderlist")>0){
-			listShoes((Buffer.concat(chunks)).toString(), "X-CTX");
-		}
-
-        chunks = [];
-        return callback();
-    });
-    return callback();
+		ctx.proxyToClientResponse.end("Block")
+		return;
+	}
+	/////////////////////////////////////////////////////
+	return;
+    //return callback();
 });
 
-//////////////////////////////////
-let matchProfile = [];
 const sendCharles = async () => {
 	console.log("**** start Charles");
 	while(1){
-		
 		try{
 			await sleep(1000);
 			resp = await axios.get("http://control.charles/session/export-json", configProxy);
@@ -141,38 +111,47 @@ const sendCharles = async () => {
 				
 				
 			});
-
-			// await axios.get("http://control.charles/session/clear", configProxy);
 		}catch(e){console.log("sendCharles err", e)}
 	}
+	await sleep(500)
 }
-
-const listShoes = async (_content, typeC) => {
-	try{
-		var list = JSON.parse(_content);
-		if(list.code == 0 && list.data.length > 0){
-			console.log(typeC,list.data[0].id, list.data.length);
-			for(var i = 0; i <list.data.length; i++){
-				const bId = list.data[i];
-				if(!listf.includes(bId.id)){
-					listf.push(bId.id);
-					const price = bId.sellPrice/1000000;
-					checkShoes(bId, price, 2);
-				}
-			}
-		}
-	}catch(e){
-		//console.log(e.message);
-	}
-};
-
 
 const start = async () => {
 	proxy.listen({
 		port: 8082
 	});
 	sendCharles();
-
 };
 
-start()
+
+(async()=>{
+	start()
+	var account = {
+		email: 'hungphong@cenog.info',
+		password: '123123',
+		private: 'UK2SRYP6X2ZFAO7Z'
+	}
+
+	//init accounts
+	stepn_api._init(account.email, account.private);
+
+	//login
+	if(stepn_api.account_data.cookie != undefined && stepn_api.account_data.cookie != ''){
+		console.log('old cookie', stepn_api.account_data.cookie)
+		let res = await stepn_api.userbasic();
+		if(res.code == 0){
+			stepn_api.isLogin = true;
+		}
+	} 
+
+	stepn_api.firstTime = false;
+
+	while(!stepn_api.isLogin){
+		await adb.noxLogin(account.email, account.password);
+		await sleep(5000);
+		console.log('new cookie', stepn_api.account_data.cookie)
+	}
+
+	//do some actions here
+	await stepn_api.withdrawNFTs();
+})()
