@@ -6,18 +6,22 @@ var fs = require('fs');
 var url = require('url');
 var Queue = require('bull')
 var net = require('net')
+var path = require('path');
 
 const stepn = require('./api_requests')
-const adb = require('./nox_adb')
+const adb = require('./nox_adb');
+const { moveUnlockedJobsToWait } = require('bull/lib/scripts');
 
 var stepn_apis = [];
+const account_path = 'C:/Users/phonnn/Desktop/stepn-sniffer/accounts.json'
 
 const noxQueue = new Queue('ProcessNox');
 const keyQueue = new Queue('ProcessStepn');
 
 noxQueue.empty();
 keyQueue.empty();
-
+noxQueue.clean(0, 'completed');
+keyQueue.clean(0, 'completed');
 axios.defaults.timeout = 7000;
 
 function sleep(ms) {
@@ -26,72 +30,97 @@ function sleep(ms) {
   });
 }
 
+var inQueue = {};
+
 //queue setup
 var thread = 2;
 keyQueue.process(thread, async (job, done) => {
 	const data = job.data;
-	var stepn_api = undefined;
+	var index = undefined;
 
-	try {
-		//choose free STEPN object
-		stepn_api = stepn_apis.find(obj => {
-			if(!obj.running){
-				obj.running = true;
-				return obj
-			}		
-		});
+	//choose free STEPN object
+	var stepn_api = stepn_apis.find(obj => {
+		if(!obj.running || obj.email == data.email){
+			obj.running = true;
+			return obj
+		}		
+	});
 
-		//init accounts
-		stepn_api._init(data.email, data.private);
-		console.log(`${stepn_api.email} -- Init -- Thread: ${stepn_apis.indexOf(stepn_api)}`)
-
-		//login
-		if(stepn_api.account_data.cookie != undefined && stepn_api.account_data.cookie != ''){
-			let res = await stepn_api.userbasic();
-			if(res.code == 0){
-				stepn_api.isLogin = true;
+	if(stepn_api != undefined){
+		try {
+			index = stepn_apis.indexOf(stepn_api);
+			
+			//init accounts
+			stepn_api._init(data.email, data.private);
+			console.log(`Thread: ${index} -- ${stepn_api.email} -- Init`)
+	
+			//login
+			if(stepn_api.account_data.cookie != undefined && stepn_api.account_data.cookie != ''){
+				let res = await stepn_api.userbasic();
+				if(res.code == 0){
+					stepn_api.isLogin = true;
+				}
+			} 
+	
+			stepn_api.firstTime = false;
+	
+			if(!stepn_api.isLogin){
+				if(inQueue[data.email] == undefined){
+					inQueue[data.email] = 1;
+					console.log(`Thread: ${index} -- ${stepn_api.email} -- Add Nox`);
+	
+					await noxQueue.add({email: data.email, password: data.password, thread: index}, {
+						removeOnComplete: true
+					});
+				}
+	
+				await sleep(20000);
 			}
-		} 
-
-		stepn_api.firstTime = false;
-
-		if(!stepn_api.isLogin){
-			console.log('Add Nox', data.email);
-			await noxQueue.add({email: data.email, password: data.password}, {
-				removeOnComplete: true,
-				attempts: 1
-			});
-
-			await sleep(10000);
+	
+			if(!stepn_api.isLogin){
+				throw new Error('Login failed');
+			}
+	
+			//do some actions here
+			// let res = await stepn_api.withdrawNFTs();
+			// console.log(`Thread: ${index} -- ${stepn_api.email} -- Action --`, res)
+			// if(res.code == 102001){
+			// 	throw 'Cookie expried';
+			// }
+			console.log(`Thread: ${index} -- ${stepn_api.email} -- Action -- OKKKK`)
+			stepn_api.running = false;
+			done();
+		} catch (error) {
+			console.log(`Thread: ${index} -- ${stepn_api.email} -- Error -- ${error}`)
+			done(error);
 		}
-		
-		if(!stepn_api.isLogin){
-			throw 'Login failed';
-		}
-
-		//do some actions here
-		let res = await stepn_api.withdrawNFTs();
-		console.log(`${stepn_api.email} -- Action --`, res)
-
-		if(res.code == 102001){
-			throw 'Cookie expried';
-		}
-		
+	} else {
 		done();
-	} catch (error) {
-		console.log(`${stepn_api.email} -- Error -- ${error}`)
-		done(error);
+		console.log('Add new', data);
+		await keyQueue.add(data, {
+			removeOnComplete: true,
+			attempts: 5, // If job fails it will retry till 5 times
+			backoff: 10000 // static 10 sec delay between retry
+		});
 	}
+});
+
+keyQueue.on('completed', function (job, result) {
+	let data = job.data
+	var stepn_api = stepn_apis.find(obj => obj.email == data.email);
 
 	if(stepn_api != undefined){
 		stepn_api.running = false;
 	}
-});
+})
 
 noxQueue.process(1, async (job, done) => {
 	const data = job.data;
 	try {
-		await adb.noxLogin(data.email, data.password);
+		if(stepn_apis[data.thread].email == data.email && !stepn_apis[data.thread].isLogin){
+			await adb.noxLogin(data.email, data.password);
+			inQueue[data.email] = undefined;
+		}
 		done()
 	} catch (error) {
 		done(error);
@@ -106,7 +135,7 @@ const configProxy = {
 	},
 	timeout: 1000 * 5
 };
-
+//
 const sendCharles = async () => {
 	console.log("**** start Charles");
 	while(1){
@@ -147,7 +176,8 @@ const start = async () => {
 };
 
 (async()=>{
-	var accounts = JSON.parse(fs.readFileSync(`accounts.json`, 'utf-8'));
+	
+	var accounts = JSON.parse(fs.readFileSync(account_path, 'utf-8'));
 
 	for(let i=0; i<thread; i++){
 		let api = new stepn.STEPN();
