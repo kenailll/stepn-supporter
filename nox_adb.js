@@ -5,6 +5,16 @@ const process = require('process');
 
 process.chdir('D:/Program Files/Nox/bin');
 
+
+async function getDevices(){
+    let cmd_res = await exec("adb.exe devices");
+    let devices = cmd_res.stdout.split('\r\n').slice(1, -2);
+    devices = devices.map(obj => {
+        return obj.split('\t')[0];
+    })
+    return devices
+}
+
 async function clearInput(X1, Y1, X2, Y2, device) {
     //select all text event
     await exec(`adb.exe ${device? `-s ${device} `: ''}shell sendevent /dev/input/event4 1 330 1`);
@@ -21,15 +31,6 @@ async function clearInput(X1, Y1, X2, Y2, device) {
     await exec(`adb.exe ${device? `-s ${device} `: ''}shell sendevent /dev/input/event4 0 0 0`);
     //delete text
     await exec(`adb.exe ${device? `-s ${device} `: ''}shell input keyevent 67`);
-}
-
-async function getDevices(){
-    let cmd_res = await exec("adb.exe devices");
-    let devices = cmd_res.stdout.split('\r\n').slice(1, -2);
-    devices = devices.map(obj => {
-        return obj.split('\t')[0];
-    })
-    return devices
 }
 
 async function noxLogin(email, password, device=null){

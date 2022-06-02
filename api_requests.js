@@ -11,6 +11,8 @@ class STEPN {
 		this.private = '';
 		this.version1 = '';
 
+		this.running = false;
+
 		this.isLogin = false;
 		this.firstTime = true;
 
@@ -32,13 +34,13 @@ class STEPN {
 	_init(_email, _private){
 		this.email = _email;
 		this.private = _private;
-
+		this.running = true;
+		this.isLogin = false;
 		try {
 			this.account_data = JSON.parse(fs.readFileSync(`${account_path}${this.email}.json`, 'utf-8'));
 			this.headers.cookie = this.account_data.cookie;
 		} catch (error) {
 			this.account_data = {};
-			console.log(error);
 		}
 	}
 
@@ -59,10 +61,9 @@ class STEPN {
 		}
 
 		var login = await this.app.get(url, headers);
-		console.log('login data', login.data)
+		console.log(`${this.email} -- Login data --`, login.data)
 	
 		if(login.data.code != 0){
-			console.log('Login error', login.data.msg);
 			return login
 		}
 		
@@ -84,8 +85,8 @@ class STEPN {
 				this.account_data.userbasic = user_info.data;
 			}
 		} catch (error) {
-			console.log('Login error', error);
-			return {code:1, msg:'Login error'}
+			console.log(`${this.email} -- Login error -- ${error}`)
+			return {code : 1, msg : 'Login error'}
 		}
 
 		return login
@@ -107,7 +108,7 @@ class STEPN {
 			this.isLogin = true;
 		}
 
-		console.log("2fa_data:", result.data)
+		console.log(`${this.email} -- 2fa_data --`, result.data)
 
 		return result.data
 	}
@@ -119,20 +120,18 @@ class STEPN {
 		this.isLogin = false;
 		this.firstTime = true;
 
-		console.log("logout:", result.data)
+		console.log(`${this.email} -- Logout --`, result.data)
 
 		return result.data
 	}
 
 	async userbasic(){
 		await this.updateVersion1();
-		console.log(this.headers);
 		var result = await this.app.get('/run/userbasic', {headers: this.headers});
 		
 		if(result.data.code == 102001){
 			this.isLogin = false;
 		}
-		console.log("userbasic:", result.data)
 
 		return result.data
 	}
@@ -144,8 +143,6 @@ class STEPN {
 		if(result.data.code == 102001){
 			this.isLogin = false;
 		}
-
-		console.log("shoesList:", result.data)
 
 		return result.data
 	}
@@ -167,7 +164,8 @@ class STEPN {
 			if(result.data.code == 102001){
 				this.isLogin = false;
 			}
-			console.log("withdraw", result.data)
+
+			console.log(`${this.email} -- Withdraw --`, result.data)
 
 			return result.data
 		}
@@ -188,7 +186,8 @@ class STEPN {
 			this.isLogin = false;
 		}
 
-		console.log("withdrawNFT", result.data)
+		console.log(`${this.email} -- WithdrawNFT --`, result.data)
+
 		return result.data
 	}
 
@@ -213,23 +212,32 @@ class STEPN {
 
 	async withdrawNFTs(){
 		var shoes = {}
-		
+		var result = {code: 0, data: []}
 		try {
 			shoes = JSON.parse(fs.readFileSync(`${account_path}${this,this.email}_rut.json`, 'utf-8'));
 		} catch (error) {
-			console.log(error)
 			return
 		}
 	
 		for(let chainId of Object.keys(shoes)){
 			for(let shoe of shoes[chainId]){
-				await this.withdrawNFT(shoe.dataID, shoe.id, chainId);
+				let res = await this.withdrawNFT(shoe.dataID, shoe.id, chainId);
+
+				if(res.code == 102001){
+					result.code = 102001;
+					return result
+				}
+
+				res.dataID = shoe.dataID;
+				res.shoeID = shoe.id;
+				result.data.push(res)
 			}
 		}
 	
 		//update shoelist in cache
 		let new_shoesList = await this.shoesList();
 		this.saveShoes(new_shoesList);
+		return result
 	}
 }
 
