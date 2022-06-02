@@ -1,10 +1,5 @@
 [
     {
-        "email": "hungphong@cenog.info",
-        "password": "123123",
-        "private": "UK2SRYP6X2ZFAO7Z"
-    },
-    {
         "email": "aaaaaaaaaa@cenog.info",
         "password": "password",
         "private": "gg-2fa"
@@ -13,5 +8,10 @@
         "email": "bbbbbb@cenog.info",
         "password": "password",
         "private": "gg-2fa"
+    },
+	{
+        "email": "hungphong@cenog.info",
+        "password": "123123",
+        "private": "UK2SRYP6X2ZFAO7Z"
     }
 ]

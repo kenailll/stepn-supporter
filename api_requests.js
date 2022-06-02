@@ -11,7 +11,7 @@ class STEPN {
 		this.private = '';
 		this.version1 = '';
 
-		this.running = false;
+		this.id = undefined;
 
 		this.isLogin = false;
 		this.firstTime = true;
@@ -34,7 +34,6 @@ class STEPN {
 	_init(_email, _private){
 		this.email = _email;
 		this.private = _private;
-		this.running = true;
 		this.isLogin = false;
 		try {
 			this.account_data = JSON.parse(fs.readFileSync(`${account_path}${this.email}.json`, 'utf-8'));

@@ -40,8 +40,8 @@ keyQueue.process(thread, async (job, done) => {
 
 	//choose free STEPN object
 	var stepn_api = stepn_apis.find(obj => {
-		if(!obj.running || obj.email == data.email){
-			obj.running = true;
+		if(obj.id == undefined || obj.email == data.email){
+			obj.id == undefined?obj.id = job.id:obj.id = undefined;
 			return obj
 		}		
 	});
@@ -51,7 +51,7 @@ keyQueue.process(thread, async (job, done) => {
 			index = stepn_apis.indexOf(stepn_api);
 			
 			//init accounts
-			stepn_api._init(data.email, data.private);
+			stepn_api._init(data.email, data.private, job.id);
 			console.log(`Thread: ${index} -- ${stepn_api.email} -- Init`)
 	
 			//login
@@ -88,7 +88,7 @@ keyQueue.process(thread, async (job, done) => {
 			// 	throw 'Cookie expried';
 			// }
 			console.log(`Thread: ${index} -- ${stepn_api.email} -- Action -- OKKKK`)
-			stepn_api.running = false;
+			stepn_api.id = undefined;
 			done();
 		} catch (error) {
 			console.log(`Thread: ${index} -- ${stepn_api.email} -- Error -- ${error}`)
@@ -96,21 +96,28 @@ keyQueue.process(thread, async (job, done) => {
 		}
 	} else {
 		done();
-		console.log('Add new', data);
 		await keyQueue.add(data, {
 			removeOnComplete: true,
-			attempts: 5, // If job fails it will retry till 5 times
+			attempts: 2, // If job fails it will retry till 5 times
 			backoff: 10000 // static 10 sec delay between retry
 		});
 	}
 });
 
+keyQueue.on('global:failed', function (job_id) {
+	var stepn_api = stepn_apis.find(obj => obj.id == job_id);
+	if(stepn_api != undefined){
+		stepn_api.id = undefined;
+		stepn_api.email = '';
+	}
+})
+
 keyQueue.on('completed', function (job, result) {
-	let data = job.data
-	var stepn_api = stepn_apis.find(obj => obj.email == data.email);
+	var stepn_api = stepn_apis.find(obj => obj.id == job.id);
 
 	if(stepn_api != undefined){
-		stepn_api.running = false;
+		stepn_api.id = undefined;
+		stepn_api.email = '';
 	}
 })
 
@@ -246,7 +253,7 @@ const start = async () => {
 		console.log('Add', account)
 		await keyQueue.add(account, {
 			removeOnComplete: true,
-			attempts: 5, // If job fails it will retry till 5 times
+			attempts: 2, // If job fails it will retry till 5 times
 			backoff: 10000 // static 10 sec delay between retry
 		});
 		await sleep(3000);
