@@ -59,8 +59,14 @@ class STEPN {
 			'host': 'apilb.stepn.com'
 		}
 
-		var login = await this.app.get(url, headers);
-		console.log(`${this.email} -- Login data --`, login.data)
+		try {
+			var login = await this.app.get(url, headers);
+			console.log(`${this.email} -- Login data --`, login.data)
+		} catch (error) {
+			console.log(`${this.email} -- Login error -- ${error}`)
+			return {code : 1, msg : 'Login error'} 
+		}
+
 	
 		if(login.data.code != 0){
 			return login
@@ -79,10 +85,10 @@ class STEPN {
 		try {
 			await this.doCodeCheck();
 
-			let user_info = await this.userbasic();
-			if(user_info.code == 0){
-				this.account_data.userbasic = user_info.data;
-			}
+			let userInfo = await this.userbasic();
+			this.saveUserbasic(userInfo);
+			let shoesList = await this.shoesList();
+			this.saveShoes(shoesList);
 		} catch (error) {
 			console.log(`${this.email} -- Login error -- ${error}`)
 			return {code : 1, msg : 'Login error'}
@@ -146,15 +152,15 @@ class STEPN {
 		return result.data
 	}
 
-	async withdraw(chainID, dataID, version){
+	async withdraw(){
 		await this.updateVersion1();
 		let userbasic = await this.userbasic();
-		let asset = userbasic.data.asset.find(obj => obj.token == dataID);
+		let asset = userbasic.data.asset.find(obj => obj.token == 3000 && obj.chain == 104);
 		if(asset.value > 0){
 			let gg_2fa = totp(this.private);
 			let params = {
-				'chainID': chainID,
-				'dataID': dataID,
+				'chainID': 104,
+				'dataID': 3000,
 				'num': asset.value,
 				'googleCode': gg_2fa
 			}
@@ -169,7 +175,7 @@ class STEPN {
 			return result.data
 		}
 	}
-	async withdrawNFT(dataID, propID, chainID, version){
+	async withdrawNFT(dataID, propID, chainID){
 		await this.updateVersion1();
 		let gg_2fa = totp(this.private);
 		let params = {

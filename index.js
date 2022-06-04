@@ -82,11 +82,22 @@ keyQueue.process(thread, async (job, done) => {
 			}
 	
 			//do some actions here
-			// let res = await stepn_api.withdrawNFTs();
-			// console.log(`Thread: ${index} -- ${stepn_api.email} -- Action --`, res)
-			// if(res.code == 102001){
-			// 	throw 'Cookie expried';
-			// }
+			//GST withdraw
+			let GST_res = await stepn_api.withdraw();
+			console.log(`Thread: ${index} -- ${stepn_api.email} -- Action --`, GST_res)
+
+			if(GST_res.code == 102001){
+				throw 'Cookie expried';
+			}
+
+			//NFT withdraw
+			let NFT_res = await stepn_api.withdrawNFTs();
+			console.log(`Thread: ${index} -- ${stepn_api.email} -- Action --`, NFT_res)
+
+			if(NFT_res.code == 102001){
+				throw 'Cookie expried';
+			}
+
 			console.log(`Thread: ${index} -- ${stepn_api.email} -- Action -- OKKKK`)
 			stepn_api.id = undefined;
 			done();
