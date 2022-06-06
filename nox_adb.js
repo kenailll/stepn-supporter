@@ -3,7 +3,7 @@ const { promisify } = require('util');
 const exec = promisify(require('child_process').exec)
 const process = require('process');
 
-process.chdir('D:/Program Files/Nox/bin');
+process.chdir('C:/Program Files/Nox/bin'); //need ENV
 
 
 async function getDevices(){
@@ -22,6 +22,13 @@ async function clearInput(X1, Y1, X2, Y2, device) {
     await exec(`adb.exe ${device? `-s ${device} `: ''}shell sendevent /dev/input/event4 3 54 ${Y1}`);
     await exec(`adb.exe ${device? `-s ${device} `: ''}shell sendevent /dev/input/event4 0 2 0`);
     await exec(`adb.exe ${device? `-s ${device} `: ''}shell sendevent /dev/input/event4 0 0 0`);
+    //
+    await exec(`adb.exe ${device? `-s ${device} `: ''}shell sendevent /dev/input/event4 1 330 1`);
+    await exec(`adb.exe ${device? `-s ${device} `: ''}shell sendevent /dev/input/event4 3 53 ${X1}`);
+    await exec(`adb.exe ${device? `-s ${device} `: ''}shell sendevent /dev/input/event4 3 54 ${Y1}`);
+    await exec(`adb.exe ${device? `-s ${device} `: ''}shell sendevent /dev/input/event4 0 2 0`);
+    await exec(`adb.exe ${device? `-s ${device} `: ''}shell sendevent /dev/input/event4 0 0 0`);
+    //doublehold
     await exec(`adb.exe ${device? `-s ${device} `: ''}shell sendevent /dev/input/event4 3 53 ${X2}`);
     await exec(`adb.exe ${device? `-s ${device} `: ''}shell sendevent /dev/input/event4 3 54 ${Y2}`);
     await exec(`adb.exe ${device? `-s ${device} `: ''}shell sendevent /dev/input/event4 0 2 0`);

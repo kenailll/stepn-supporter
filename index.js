@@ -13,7 +13,6 @@ const adb = require('./nox_adb');
 const { moveUnlockedJobsToWait } = require('bull/lib/scripts');
 
 var stepn_apis = [];
-const account_path = 'C:/Users/phonnn/Desktop/stepn-sniffer/accounts.json'
 
 const noxQueue = new Queue('ProcessNox');
 const keyQueue = new Queue('ProcessStepn');
@@ -91,12 +90,12 @@ keyQueue.process(thread, async (job, done) => {
 			}
 
 			//NFT withdraw
-			let NFT_res = await stepn_api.withdrawNFTs();
-			console.log(`Thread: ${index} -- ${stepn_api.email} -- Action --`, NFT_res)
+			// let NFT_res = await stepn_api.withdrawNFTs();
+			// console.log(`Thread: ${index} -- ${stepn_api.email} -- Action --`, NFT_res)
 
-			if(NFT_res.code == 102001){
-				throw 'Cookie expried';
-			}
+			// if(NFT_res.code == 102001){
+			// 	throw 'Cookie expried';
+			// }
 
 			console.log(`Thread: ${index} -- ${stepn_api.email} -- Action -- OKKKK`)
 			stepn_api.id = undefined;
@@ -195,7 +194,7 @@ const start = async () => {
 
 (async()=>{
 	
-	var accounts = JSON.parse(fs.readFileSync(account_path, 'utf-8'));
+	var accounts = JSON.parse(fs.readFileSync(__dirname +`\\accounts.json`, 'utf-8'));
 
 	for(let i=0; i<thread; i++){
 		let api = new stepn.STEPN();

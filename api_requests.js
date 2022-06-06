@@ -3,7 +3,6 @@ const totp = require("totp-generator");
 const fs = require("fs")
 
 const adb = require('./nox_adb')
-const account_path = 'C:/Users/phonnn/Desktop/stepn-sniffer/accounts/'
 
 class STEPN {
 	constructor(){
@@ -36,7 +35,7 @@ class STEPN {
 		this.private = _private;
 		this.isLogin = false;
 		try {
-			this.account_data = JSON.parse(fs.readFileSync(`${account_path}${this.email}.json`, 'utf-8'));
+			this.account_data = JSON.parse(fs.readFileSync(`./accounts/${this.email}.json`, 'utf-8'));
 			this.headers.cookie = this.account_data.cookie;
 		} catch (error) {
 			this.account_data = {};
@@ -80,7 +79,7 @@ class STEPN {
 		this.account_data.cookie = login.headers['set-cookie'][0];
 		this.account_data.deviceInfo = deviceInfo;
 		this.headers.cookie = login.headers['set-cookie'][0];
-		fs.writeFileSync(`${account_path}${this.email}.json`, JSON.stringify(this.account_data, '', 4));
+		fs.writeFileSync(__dirname + `\\accounts\\${this.email}.json`, JSON.stringify(this.account_data, '', 4));
 
 		try {
 			await this.doCodeCheck();
@@ -155,13 +154,16 @@ class STEPN {
 	async withdraw(){
 		await this.updateVersion1();
 		let userbasic = await this.userbasic();
+		console.log(userbasic);
 		let asset = userbasic.data.asset.find(obj => obj.token == 3000 && obj.chain == 104);
-		if(asset.value > 0){
+		console.log(asset);
+
+		if(asset.value-200 > 0){
 			let gg_2fa = totp(this.private);
 			let params = {
 				'chainID': 104,
 				'dataID': 3000,
-				'num': asset.value,
+				'num': asset.value-200,
 				'googleCode': gg_2fa
 			}
 			let result = await this.app.get('/run/withdrawtoken', {headers: this.headers, params: params});
@@ -169,10 +171,10 @@ class STEPN {
 			if(result.data.code == 102001){
 				this.isLogin = false;
 			}
-
 			console.log(`${this.email} -- Withdraw --`, result.data)
-
 			return result.data
+		}else{
+			return { code: 0, msg: "mInsufficient fee (GST)" }
 		}
 	}
 	async withdrawNFT(dataID, propID, chainID){
@@ -199,7 +201,7 @@ class STEPN {
 	saveUserbasic(data){
 		if(data.code == 0){
 			this.account_data.userbasic = data.data;
-			fs.writeFileSync(`${account_path}${this.email}.json`, JSON.stringify(this.account_data, '', 4));
+			fs.writeFileSync(__dirname + `\\accounts\\${this.email}.json`, JSON.stringify(this.account_data, '', 4));
 		}
 	}
 
@@ -211,7 +213,7 @@ class STEPN {
 			this.account_data["103"] = chain_103
 			this.account_data["104"] = chain_104
 
-			fs.writeFileSync(`${account_path}${this.email}.json`, JSON.stringify(this.account_data, '', 4));
+			fs.writeFileSync(__dirname + `\\accounts\\${this.email}.json`, JSON.stringify(this.account_data, '', 4));
 		}
 	}
 
@@ -219,7 +221,7 @@ class STEPN {
 		var shoes = {}
 		var result = {code: 0, data: []}
 		try {
-			shoes = JSON.parse(fs.readFileSync(`${account_path}${this,this.email}_rut.json`, 'utf-8'));
+			shoes = JSON.parse(fs.readFileSync(__dirname + `\\accounts\\${this,this.email}_rut.json`, 'utf-8'));
 		} catch (error) {
 			return
 		}
