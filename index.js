@@ -7,6 +7,7 @@ var url = require('url');
 var Queue = require('bull')
 var net = require('net')
 var path = require('path');
+require('dotenv').config();
 
 const stepn = require('./api_requests')
 const adb = require('./nox_adb');
@@ -39,10 +40,16 @@ keyQueue.process(thread, async (job, done) => {
 
 	//choose free STEPN object
 	var stepn_api = stepn_apis.find(obj => {
-		if(obj.id == undefined || obj.email == data.email){
-			obj.id == undefined?obj.id = job.id:obj.id = undefined;
+		if(obj.id == undefined){
+			obj.id = job.id;
+			obj.running = true;
 			return obj
-		}		
+		}
+		
+		if(obj.email == data.email && !obj.running){
+			obj.running = true;
+			return obj
+		}
 	});
 
 	if(stepn_api != undefined){
@@ -50,14 +57,16 @@ keyQueue.process(thread, async (job, done) => {
 			index = stepn_apis.indexOf(stepn_api);
 			
 			//init accounts
-			stepn_api._init(data.email, data.private, job.id);
-			console.log(`Thread: ${index} -- ${stepn_api.email} -- Init`)
-	
+			stepn_api._init(data.email, data.private);
+			console.log(`Thread: ${index} -- ${stepn_api.email} -- ID: ${stepn_api.id} -- Init`)
+			
 			//login
 			if(stepn_api.account_data.cookie != undefined && stepn_api.account_data.cookie != ''){
 				let res = await stepn_api.userbasic();
 				if(res.code == 0){
 					stepn_api.isLogin = true;
+				} else {
+					console.log(`Thread: ${index} -- ${stepn_api.email} -- Cookie expried`)
 				}
 			} 
 	
@@ -99,6 +108,7 @@ keyQueue.process(thread, async (job, done) => {
 
 			console.log(`Thread: ${index} -- ${stepn_api.email} -- Action -- OKKKK`)
 			stepn_api.id = undefined;
+			stepn_api.running = false;
 			done();
 		} catch (error) {
 			console.log(`Thread: ${index} -- ${stepn_api.email} -- Error -- ${error}`)
@@ -118,7 +128,15 @@ keyQueue.on('global:failed', function (job_id) {
 	var stepn_api = stepn_apis.find(obj => obj.id == job_id);
 	if(stepn_api != undefined){
 		stepn_api.id = undefined;
+		stepn_api.running = false;
 		stepn_api.email = '';
+	}
+})
+
+keyQueue.on('failed', function (job_id) {
+	var stepn_api = stepn_apis.find(obj => obj.id == job_id);
+	if(stepn_api != undefined){
+		stepn_api.running = false;
 	}
 })
 
@@ -127,6 +145,7 @@ keyQueue.on('completed', function (job, result) {
 
 	if(stepn_api != undefined){
 		stepn_api.id = undefined;
+		stepn_api.running = false;
 		stepn_api.email = '';
 	}
 })
@@ -193,7 +212,6 @@ const start = async () => {
 };
 
 (async()=>{
-	
 	var accounts = JSON.parse(fs.readFileSync(__dirname +`\\accounts.json`, 'utf-8'));
 
 	for(let i=0; i<thread; i++){

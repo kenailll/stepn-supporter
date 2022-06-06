@@ -73,7 +73,6 @@ web_modules/
 .yarn-integrity
 
 # dotenv environment variable files
-.env
 .env.development.local
 .env.test.local
 .env.production.local
@@ -129,3 +128,6 @@ Charles- Shortcut.lnk
 RUTZCLAIM.chls
 accounts/
 .http-mitm-proxy/
+requirements/authenticator.txt
+requirements/STEPN_mod_066.apk
+requirements/device 220220602232216.npbk

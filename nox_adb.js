@@ -2,8 +2,9 @@
 const { promisify } = require('util');
 const exec = promisify(require('child_process').exec)
 const process = require('process');
+const dotenv = require('dotenv')
 
-process.chdir('C:/Program Files/Nox/bin'); //need ENV
+process.chdir(process.env.NOX_PATH);
 
 
 async function getDevices(){

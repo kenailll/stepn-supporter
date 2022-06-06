@@ -1,8 +1,10 @@
 const axios = require('axios').default;
 const totp = require("totp-generator");
-const fs = require("fs")
+const fs = require("fs");
+var path = require('path');
 
-const adb = require('./nox_adb')
+const adb = require('./nox_adb');
+const account_path = path.join(__dirname, 'accounts');
 
 class STEPN {
 	constructor(){
@@ -11,6 +13,7 @@ class STEPN {
 		this.version1 = '';
 
 		this.id = undefined;
+		this.running = false;
 
 		this.isLogin = false;
 		this.firstTime = true;
@@ -35,9 +38,10 @@ class STEPN {
 		this.private = _private;
 		this.isLogin = false;
 		try {
-			this.account_data = JSON.parse(fs.readFileSync(`./accounts/${this.email}.json`, 'utf-8'));
+			this.account_data = JSON.parse(fs.readFileSync(path.join(account_path, `${this.email}.json`), 'utf-8'));
 			this.headers.cookie = this.account_data.cookie;
 		} catch (error) {
+			console.log(error)
 			this.account_data = {};
 		}
 	}
@@ -79,7 +83,7 @@ class STEPN {
 		this.account_data.cookie = login.headers['set-cookie'][0];
 		this.account_data.deviceInfo = deviceInfo;
 		this.headers.cookie = login.headers['set-cookie'][0];
-		fs.writeFileSync(__dirname + `\\accounts\\${this.email}.json`, JSON.stringify(this.account_data, '', 4));
+		fs.writeFileSync(path.join(account_path, `${this.email}.json`), JSON.stringify(this.account_data, '', 4));
 
 		try {
 			await this.doCodeCheck();
@@ -154,9 +158,7 @@ class STEPN {
 	async withdraw(){
 		await this.updateVersion1();
 		let userbasic = await this.userbasic();
-		console.log(userbasic);
 		let asset = userbasic.data.asset.find(obj => obj.token == 3000 && obj.chain == 104);
-		console.log(asset);
 
 		if(asset.value-200 > 0){
 			let gg_2fa = totp(this.private);
@@ -201,7 +203,7 @@ class STEPN {
 	saveUserbasic(data){
 		if(data.code == 0){
 			this.account_data.userbasic = data.data;
-			fs.writeFileSync(__dirname + `\\accounts\\${this.email}.json`, JSON.stringify(this.account_data, '', 4));
+			fs.writeFileSync(path.join(account_path, `${this.email}.json`), JSON.stringify(this.account_data, '', 4));
 		}
 	}
 
@@ -213,7 +215,7 @@ class STEPN {
 			this.account_data["103"] = chain_103
 			this.account_data["104"] = chain_104
 
-			fs.writeFileSync(__dirname + `\\accounts\\${this.email}.json`, JSON.stringify(this.account_data, '', 4));
+			fs.writeFileSync(path.join(account_path, `${this.email}.json`), JSON.stringify(this.account_data, '', 4));
 		}
 	}
 
@@ -221,7 +223,7 @@ class STEPN {
 		var shoes = {}
 		var result = {code: 0, data: []}
 		try {
-			shoes = JSON.parse(fs.readFileSync(__dirname + `\\accounts\\${this,this.email}_rut.json`, 'utf-8'));
+			shoes = JSON.parse(fs.readFileSync(path.join(account_path, `${this.email}_rut.json`), 'utf-8'));
 		} catch (error) {
 			return
 		}
