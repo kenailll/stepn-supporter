@@ -8,14 +8,16 @@ require("../config/")
 noxQueue.process(1, async (job, done) => {
 	const data = job.data;
 	try {
-		if (stepn_apis[data.thread].email == data.email && !stepn_apis[data.thread].isLogin) {
+		if (stepn_apis[data.id].email == data.email && !stepn_apis[data.id].isLogin) {
 			await adb.noxLogin(data.email, data.password);
 			inQueue[data.email] = undefined;
 		}
-		done()
+		await utils.sleep(5000);
+		done();
 	} catch (error) {
 		done(error);
 	}
 });
+
 
 module.exports = noxQueue;

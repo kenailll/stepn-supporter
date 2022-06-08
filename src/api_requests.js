@@ -4,22 +4,23 @@ const fs = require("fs");
 var path = require('path');
 
 const adb = require('./nox_adb');
-const account_path = path.join(__dirname, 'accounts');
+const account_path = path.join(__dirname, '..', 'accounts');
 
 class STEPN {
-	constructor() {
+	constructor(id) {
 		this.email = '';
 		this.private = '';
 		this.version1 = '';
 
-		this.id = undefined;
+		this.id = id;
+		this.job_id = undefined;
 		this.running = false;
 
 		this.isLogin = false;
 		this.firstTime = true;
 
 		this.GST_withdraw = 0;
-		
+
 		this.app = axios.create({
 			baseURL: 'https://apilb.stepn.com/',
 		});
@@ -38,13 +39,14 @@ class STEPN {
 	_init(_email, _private) {
 		this.email = _email;
 		this.private = _private;
+		this.running = true;
 		this.isLogin = false;
 
 		try {
 			this.account_data = JSON.parse(fs.readFileSync(path.join(account_path, `${this.email}.json`), 'utf-8'));
 			this.headers.cookie = this.account_data.cookie;
 		} catch (error) {
-			console.log(error)
+			// console.log(error)
 			this.account_data = {};
 		}
 	}

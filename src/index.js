@@ -1,36 +1,30 @@
 var Proxy = require('http-mitm-proxy');
-const axios = require('axios').default;
-const path = require('path');
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 var proxy = Proxy();
-var fs = require('fs');
 var url = require('url');
-var Queue = require('bull');
 var net = require('net');
 
 require('dotenv').config();
 
 const stepn = require('./api_requests');
-const adb = require('./nox_adb');
 const utils = require('./utils');
 
 require("./config/")
 
 const noxQueue = require("./queueService/noxQueue");
-const keyQueue = require("./queueService/stepnQueue");
+const stepnQueue = require("./queueService/stepnQueue");
 const sheetQueue = require("./queueService/sheetQueue");
 
 sheetQueue.empty();
 noxQueue.empty();
-keyQueue.empty();
+stepnQueue.empty();
 
 for (const status of ['active', 'completed', 'delayed', 'failed', 'wait']) {
 	sheetQueue.clean(100, status);
 	noxQueue.clean(100, status);
-	keyQueue.clean(100, status);
+	stepnQueue.clean(100, status);
 }
 
-var thread = 2;
 ////////////////////////////////////////////////
 
 (async () => {
@@ -67,7 +61,7 @@ var thread = 2;
 
 	//create stepn API obj
 	for (let i = 0; i < thread; i++) {
-		let api = new stepn.STEPN();
+		let api = new stepn.STEPN(i);
 		stepn_apis.push(api);
 	}
 
@@ -135,8 +129,10 @@ var thread = 2;
 	
 	for (let account of accounts) {
 		console.log('Add', account)
-		await keyQueue.add(account, {
-			removeOnComplete: true
+		await stepnQueue.add(account, {
+			removeOnComplete: true,
+			attempts: 5, // If job fails it will retry till 5 times
+			backoff: 10000 // static 10 sec delay between retry
 		});
 		await utils.sleep(3000);
 	}

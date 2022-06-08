@@ -131,3 +131,4 @@ accounts/
 requirements/authenticator.txt
 requirements/STEPN_mod_066.apk
 requirements/device 220220602232216.npbk
+.env
