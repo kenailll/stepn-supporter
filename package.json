@@ -13,6 +13,7 @@
     "bull": "^4.8.3",
     "chain-proxy": "0.0.3",
     "dotenv": "^16.0.1",
+    "google-spreadsheet": "^3.3.0",
     "http-mitm-proxy": "^0.9.0",
     "https-proxy-agent": "^5.0.1",
     "node-telegram-bot-api": "^0.57.0",

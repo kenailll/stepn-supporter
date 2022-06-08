@@ -7,7 +7,7 @@ const adb = require('./nox_adb');
 const account_path = path.join(__dirname, 'accounts');
 
 class STEPN {
-	constructor(){
+	constructor() {
 		this.email = '';
 		this.private = '';
 		this.version1 = '';
@@ -18,25 +18,28 @@ class STEPN {
 		this.isLogin = false;
 		this.firstTime = true;
 
+		this.GST_withdraw = 0;
+		
 		this.app = axios.create({
-            baseURL: 'https://apilb.stepn.com/',
-        });
+			baseURL: 'https://apilb.stepn.com/',
+		});
 
 		this.headers = {
 			'user-agent': 'Dart/2.16 (dart:io)',
 			'accept': 'application/json',
-			'accept-language':	'zh-CN',
-			'accept-encoding':'gzip',
+			'accept-language': 'zh-CN',
+			'accept-encoding': 'gzip',
 			'cookie': '',
 			'version1': '',
 			'host': 'apilb.stepn.com'
 		};
 	}
 
-	_init(_email, _private){
+	_init(_email, _private) {
 		this.email = _email;
 		this.private = _private;
 		this.isLogin = false;
+
 		try {
 			this.account_data = JSON.parse(fs.readFileSync(path.join(account_path, `${this.email}.json`), 'utf-8'));
 			this.headers.cookie = this.account_data.cookie;
@@ -46,19 +49,19 @@ class STEPN {
 		}
 	}
 
-	async updateVersion1(){
-		if(this.version1 == ''){
+	async updateVersion1() {
+		if (this.version1 == '') {
 			await adb.noxVersion();
 			this.headers.version1 = this.version1;
 		}
 	}
 
-	async login(url){
+	async login(url) {
 		let headers = {
 			'user-agent': 'Dart/2.16 (dart:io)',
 			'accept': 'application/json',
-			'accept-language':	'zh-CN',
-			'accept-encoding':'gzip',
+			'accept-language': 'zh-CN',
+			'accept-encoding': 'gzip',
 			'host': 'apilb.stepn.com'
 		}
 
@@ -67,14 +70,14 @@ class STEPN {
 			console.log(`${this.email} -- Login data --`, login.data)
 		} catch (error) {
 			console.log(`${this.email} -- Login error -- ${error}`)
-			return {code : 1, msg : 'Login error'} 
+			return { code: 1, msg: 'Login error' }
 		}
 
-	
-		if(login.data.code != 0){
+
+		if (login.data.code != 0) {
 			return login
 		}
-		
+
 		let pattern = /deviceInfo=(.+)&{0,1}/
 		let deviceInfo = url.match(pattern)[1].toString().replace('%40', '@');
 		deviceInfo = encodeURI(deviceInfo);
@@ -94,13 +97,13 @@ class STEPN {
 			this.saveShoes(shoesList);
 		} catch (error) {
 			console.log(`${this.email} -- Login error -- ${error}`)
-			return {code : 1, msg : 'Login error'}
+			return { code: 1, msg: 'Login error' }
 		}
 
 		return login
 	}
-	
-	async doCodeCheck(){
+
+	async doCodeCheck() {
 		await this.updateVersion1();
 		let gg_2fa = totp(this.private);
 
@@ -108,9 +111,9 @@ class STEPN {
 			codeData: `2:${gg_2fa}`
 		};
 
-		let result = await this.app.get('/run/doCodeCheck', {headers: this.headers, params: params});
-		
-		if(result.data.code != 0){
+		let result = await this.app.get('/run/doCodeCheck', { headers: this.headers, params: params });
+
+		if (result.data.code != 0) {
 			this.isLogin = false;
 		} else {
 			this.isLogin = true;
@@ -121,10 +124,10 @@ class STEPN {
 		return result.data
 	}
 
-	async logout(){
+	async logout() {
 		await this.updateVersion1();
-		let result = await this.app.get('/run/loginOut', {headers: this.headers});
-		
+		let result = await this.app.get('/run/loginOut', { headers: this.headers });
+
 		this.isLogin = false;
 		this.firstTime = true;
 
@@ -133,53 +136,62 @@ class STEPN {
 		return result.data
 	}
 
-	async userbasic(){
+	async userbasic() {
 		await this.updateVersion1();
-		var result = await this.app.get('/run/userbasic', {headers: this.headers});
-		
-		if(result.data.code == 102001){
+		var result = await this.app.get('/run/userbasic', { headers: this.headers });
+
+		if (result.data.code == 102001) {
 			this.isLogin = false;
 		}
 
 		return result.data
 	}
 
-	async shoesList(){
+	async shoesList() {
 		await this.updateVersion1();
-		let result = await this.app.get('/run/shoelist', {headers: this.headers});
+		let result = await this.app.get('/run/shoelist', { headers: this.headers });
 
-		if(result.data.code == 102001){
+		if (result.data.code == 102001) {
 			this.isLogin = false;
 		}
 
 		return result.data
 	}
 
-	async withdraw(){
+	async withdraw() {
 		await this.updateVersion1();
 		let userbasic = await this.userbasic();
-		let asset = userbasic.data.asset.find(obj => obj.token == 3000 && obj.chain == 104);
+		let assets = userbasic.data.asset;
 
-		if(asset.value-200 > 0){
-			let gg_2fa = totp(this.private);
-			let params = {
-				'chainID': 104,
-				'dataID': 3000,
-				'num': asset.value-200,
-				'googleCode': gg_2fa
-			}
-			let result = await this.app.get('/run/withdrawtoken', {headers: this.headers, params: params});
+		for await (let asset of assets){
+			if (asset.token == 3000 && asset.value - 200 > 0) {
+				let gg_2fa = totp(this.private);
+				let params = {
+					'chainID': asset.chain,
+					'dataID': 3000,
+					'num': asset.value - 200,
+					'googleCode': gg_2fa
+				}
 
-			if(result.data.code == 102001){
-				this.isLogin = false;
+				let result = await this.app.get('/run/withdrawtoken', { headers: this.headers, params: params });
+
+				if (result.data.code == 102001) {
+					this.isLogin = false;
+					return result.data
+				}
+
+				if (result.data.code == 0) {
+					this.GST_withdraw += (asset.value - 200);
+				}
+				
+				console.log(`${this.email} -- Withdraw -- Chain ${asset.chain} --`, result.data)
 			}
-			console.log(`${this.email} -- Withdraw --`, result.data)
-			return result.data
-		}else{
-			return { code: 0, msg: "mInsufficient fee (GST)" }
 		}
+
+		return { code: 0, msg: "Withdrawal successful" }
 	}
-	async withdrawNFT(dataID, propID, chainID){
+
+	async withdrawNFT(dataID, propID, chainID) {
 		await this.updateVersion1();
 		let gg_2fa = totp(this.private);
 		let params = {
@@ -189,9 +201,9 @@ class STEPN {
 			'num': 1,
 			'googleCode': gg_2fa
 		}
-		let result = await this.app.get('/run/withdrawtoken', {headers: this.headers, params: params});
-		
-		if(result.data.code == 102001){
+		let result = await this.app.get('/run/withdrawtoken', { headers: this.headers, params: params });
+
+		if (result.data.code == 102001) {
 			this.isLogin = false;
 		}
 
@@ -200,18 +212,18 @@ class STEPN {
 		return result.data
 	}
 
-	saveUserbasic(data){
-		if(data.code == 0){
+	saveUserbasic(data) {
+		if (data.code == 0) {
 			this.account_data.userbasic = data.data;
 			fs.writeFileSync(path.join(account_path, `${this.email}.json`), JSON.stringify(this.account_data, '', 4));
 		}
 	}
 
-	saveShoes(data){
-		if(data.code == 0){
+	saveShoes(data) {
+		if (data.code == 0) {
 			let chain_103 = data.data.filter(shoe => shoe.chain == 103);
 			let chain_104 = data.data.filter(shoe => shoe.chain == 104);
-	
+
 			this.account_data["103"] = chain_103
 			this.account_data["104"] = chain_104
 
@@ -219,20 +231,20 @@ class STEPN {
 		}
 	}
 
-	async withdrawNFTs(){
+	async withdrawNFTs() {
 		var shoes = {}
-		var result = {code: 0, data: []}
+		var result = { code: 0, data: [] }
 		try {
 			shoes = JSON.parse(fs.readFileSync(path.join(account_path, `${this.email}_rut.json`), 'utf-8'));
 		} catch (error) {
 			return
 		}
-	
-		for(let chainId of Object.keys(shoes)){
-			for(let shoe of shoes[chainId]){
+
+		for (let chainId of Object.keys(shoes)) {
+			for (let shoe of shoes[chainId]) {
 				let res = await this.withdrawNFT(shoe.dataID, shoe.id, chainId);
 
-				if(res.code == 102001){
+				if (res.code == 102001) {
 					result.code = 102001;
 					return result
 				}
@@ -242,7 +254,7 @@ class STEPN {
 				result.data.push(res)
 			}
 		}
-	
+
 		//update shoelist in cache
 		let new_shoesList = await this.shoesList();
 		this.saveShoes(new_shoesList);
